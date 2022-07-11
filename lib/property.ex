@@ -12,8 +12,28 @@ defmodule Property do
     end
   end
 
+  defmodule Overrides do
+    @moduledoc false
+
+    import Kernel, except: [@: 1]
+
+    defmacro @{:property, _, [expr]} do
+      quote location: :keep do
+        @type unquote(expr)
+      end
+    end
+
+    defmacro @ast do
+      quote location: :keep do
+        Kernel.@(unquote(ast))
+      end
+    end
+  end
+
   defmacro __using__(_) do
     quote do
+      import Kernel, except: [@: 1]
+      import Overrides, only: [@: 1]
       import Property
       alias __MODULE__
       Module.register_attribute(__MODULE__, :property, accumulate: true)

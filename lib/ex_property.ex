@@ -1,6 +1,80 @@
-defmodule Property do
+defmodule ExProperty do
   @moduledoc """
-  Documentation for `Property`.
+  Defines the `property` macros and the related evaluation function.
+
+  A "property" is a value derived from an input and eventually other
+  property values.
+
+  ## Usage
+
+  Use the module and define the `input` type, representing the input value
+  given to the properties, for example:
+  ```
+  use ExProperty
+
+  @type input :: integer()
+  ```
+
+  Define each property as follow:
+  ```
+  @property name :: integer()
+  property name(_input, _other_properties), do: 42
+  ```
+
+  ExProperty creates a resulting struct (of type `t()`) including all the properties
+  defined in the module.
+
+  The second parameter can be pattern-matched against such struct; in such a case,
+  all the matched properties are evaluated before that property:
+  ```
+  property name(_input, %__MODULE__{other_property: value}), do: value
+  ```
+
+  As a result, the function `new/1` is auto-generated. It accepts the input and returns
+  the struct with all the properties, evaluating them in topologicaly order and ensuring
+  that no cycles are present.
+
+  ## Implementation details
+
+  Given the following example module:
+
+  ```elixir
+  @type input :: integer()
+
+  @property foo :: integer()
+  property foo(i, %{bar: bar}), do: i + bar
+
+  @property bar :: integer()
+  property bar(i, _), do: 2 * i
+  ```
+
+  When it is compiled `ExProperty` generates code equivalent to the following:
+
+  ```elixir
+  @type input :: integer()
+
+  @type foo :: integer()
+  @type bar :: integer()
+
+  @type t :: %__MODULE__{
+    foo: foo(),
+    bar: bar()
+  }
+  defstruct [:foo, :bar]
+
+  @spec foo(input(), t()) :: foo()
+  def foo(i, %{bar: bar}), do: i + bar
+
+  @spec bar(input(), t()) :: foo()
+  def bar(i, _), do: 2 * i
+
+  @spec new(input()) :: t()
+  def new(input) do
+    result = %__MODULE__{}
+    result = %__MODULE__{ result | bar: bar(input, result) }
+    result = %__MODULE__{ result | foo: foo(input, result) }
+  end
+  ```
   """
 
   defmodule LoopError do
@@ -34,11 +108,11 @@ defmodule Property do
     quote do
       import Kernel, except: [@: 1]
       import Overrides, only: [@: 1]
-      import Property
+      import ExProperty
       alias __MODULE__
       Module.register_attribute(__MODULE__, :property, accumulate: true)
       Module.register_attribute(__MODULE__, :definition, accumulate: true)
-      @before_compile Property
+      @before_compile ExProperty
     end
   end
 
@@ -78,7 +152,7 @@ defmodule Property do
     quote do
       @spec new(input()) :: t()
       def new(input) do
-        Property.build(__MODULE__, unquote(building_order), input)
+        ExProperty.build(__MODULE__, unquote(building_order), input)
       end
 
       unquote(generate_type(names))

@@ -1,16 +1,18 @@
-# Defproperty
+# ExProperty
 
-**TODO: Add description**
+Provides an internal DSL useful to evaluate efficiently a set of properties that depend on each other.
+
+Take a look at [ExPropertyTest](test/ex_property_test.exs) for an example of its usage.
 
 ## Installation
 
 If [available in Hex](https://hex.pm/docs/publish), the package can be installed
-by adding `defproperty` to your list of dependencies in `mix.exs`:
+by adding `ex_property` to your list of dependencies in `mix.exs`:
 
 ```elixir
 def deps do
   [
-    {:defproperty, "~> 0.1.0"}
+    {:ex_property, "~> 0.1.0"}
   ]
 end
 ```

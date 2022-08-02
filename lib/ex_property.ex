@@ -109,8 +109,7 @@ defmodule ExProperty do
     quote do
       import Kernel, except: [@: 1]
       import Overrides, only: [@: 1]
-      import ExProperty
-      alias __MODULE__
+      import ExProperty, only: [property: 2]
       Module.register_attribute(__MODULE__, :property, accumulate: true)
       Module.register_attribute(__MODULE__, :definition, accumulate: true)
       @before_compile ExProperty
@@ -146,41 +145,26 @@ defmodule ExProperty do
 
   defmacro __before_compile__(%{module: module}) do
     properties = Module.delete_attribute(module, :property)
-    building_order = building_order(properties)
     names = properties |> Keyword.keys() |> Enum.uniq()
     definitions = module |> Module.delete_attribute(:definition) |> Enum.reverse()
 
     quote do
-      @spec new(input()) :: t()
-      def new(input) do
-        ExProperty.build(__MODULE__, unquote(building_order), input)
-      end
-
-      unquote(generate_type(names))
+      unquote(generate_constructor(properties))
       unquote(generate_struct(names))
       unquote(generate_defs(definitions))
     end
   end
 
-  # @type t :: %__MODULE__{
-  #         p: p(),
-  #         q: q(),
-  #         r: r()
-  #       }
-  @spec generate_type([atom]) :: Macro.t()
-  defp generate_type(names) do
+  @spec generate_struct([atom]) :: Macro.t()
+  defp generate_struct(names) do
+    # If the names are :p and :q, it generates a type like:
+    #   @type t :: %__MODULE__{ p: p(), q: q() }
     fields = Enum.map(names, &{_name = &1, {_type = &1, [], []}})
     map = {:%{}, [], fields}
-    struct = {:%, [], [{:__MODULE__, [if_undefined: :apply], Elixir}, map]}
+    struct = {:%, [], [{:__MODULE__, [], Elixir}, map]}
 
     quote do
       @type t :: unquote(struct)
-    end
-  end
-
-  @spec generate_struct([atom]) :: Macro.t()
-  defp generate_struct(names) do
-    quote do
       defstruct unquote(names)
     end
   end
@@ -199,8 +183,20 @@ defmodule ExProperty do
     end
   end
 
+  @spec generate_constructor([atom]) :: Macro.t()
+  defp generate_constructor(properties) do
+    order = building_order(properties)
+
+    quote do
+      @spec new(input()) :: t()
+      def new(input) do
+        ExProperty.build(__MODULE__, unquote(order), input)
+      end
+    end
+  end
+
   @spec building_order([{atom, [atom]}]) :: [atom]
-  defp building_order(properties) do
+  def building_order(properties) do
     graph =
       for {property, depends_on} <- properties,
           other_property <- depends_on,
@@ -215,7 +211,7 @@ defmodule ExProperty do
     Graph.topsort(graph)
   end
 
-  @spec build(module(), [atom()], any) :: struct()
+  @spec build(module(), [atom], any) :: struct()
   def build(module, properties, input) do
     for name <- properties, reduce: struct(module) do
       it ->

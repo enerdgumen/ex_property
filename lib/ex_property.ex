@@ -91,9 +91,10 @@ defmodule ExProperty do
 
     import Kernel, except: [@: 1]
 
-    defmacro @{:property, _, [expr]} do
+    defmacro @{:property, _, [expr = {:"::", _, [{name, _, _}, _]}]} when is_atom(name) do
       quote location: :keep do
         @type unquote(expr)
+        @spec unquote(name)(input(), t()) :: unquote(name)()
       end
     end
 
@@ -157,7 +158,6 @@ defmodule ExProperty do
 
       unquote(generate_type(names))
       unquote(generate_struct(names))
-      unquote(generate_specs(names))
       unquote(generate_defs(definitions))
     end
   end
@@ -182,20 +182,6 @@ defmodule ExProperty do
   defp generate_struct(names) do
     quote do
       defstruct unquote(names)
-    end
-  end
-
-  @spec generate_specs([atom]) :: Macro.t()
-  defp generate_specs(names) do
-    specs =
-      for name <- names do
-        quote do
-          @spec unquote(name)(input(), t()) :: unquote(name)()
-        end
-      end
-
-    quote do
-      (unquote_splicing(specs))
     end
   end
 
